@@ -1,37 +1,12 @@
-"""
-PINS IN USE
->NeoPixel
-->board.D5
->Motor
-->board.I2C
->ESP
-->board.11-13
-
-ECEG 201 DA 10
-David Berry, Matt Lamparter
-Updated 11/01/2022
-Changed hour and minute positions to accomodate new NeoPixel ring orientation on PCB v 3.1
-Updated 4/13/2023
-Moved from worldtimeapi.org to timeapi.io after worldtimeapi was repeatedly down
-Updated 8/29/2023
-Moved from weather.gov to open-meteo.com for weather API due to hourly weather data (15 minute available)
-"""
-
-#Import Libraries
 import espFunctions as espFun
 import neoPixelFunctions as neoFun
 import motorFunctions as motorFun
-
-#Other imports that are needed
-import rtc
+import json
 import board
-import time
-import json
-import math
 from adafruit_seesaw import seesaw, rotaryio, digitalio
-import json
+import adafruit_character_lcd.character_lcd_i2c as character_lcd
+import time
 
-################################################################# Constants and Wifi stuff ################################################################
 
 #Wifi and Thingspeak stuff
 try:
@@ -42,34 +17,11 @@ except ImportError:
 NETWORK_NAME = secrets["ssid"]
 NETWORK_PASS = secrets["password"]
 
-I2C = board.I2C()
-
-net_tool = espFun.ESP_Tools(NETWORK_NAME, NETWORK_PASS)
-
-# hostServer = 'http://134.82.159.191:8000'
-# joinPath = '/join.json'
-
-# txt = net_tool.api_get(hostServer + joinPath)
-
-# print(txt)
-
-#NeoPixel settings
-NEO_BRIGHTNESS = 0.3
-
-#Determines whether or not debug messages are printed out
-DEBUG = False
-
-################################################################# Helper Functions #########################################################
-
-def GetPosition():
-    return -encoder.position
-
 def GenerateColors():
     neoFun.bar_graph((0,200,0), 5, True, 0) #green
     neoFun.bar_graph((255,0,0), 11, True, 6) #red
     neoFun.bar_graph((255,255,0), 17, True, 12) #yellow
     neoFun.bar_graph((0,191,255), 24, True, 18) #blue
-
 
 def Flash(flashvalue, color1, color2, color3, end_pos, start_pos):
         if flashvalue:
@@ -85,21 +37,28 @@ def Flash_3(color1, color2, color3, end_pos, start_pos):
             neoFun.bar_graph((color1, color2,color3), end_pos, True, start_pos)
             time.sleep(.1)
 
+hostServer = 'http://134.82.159.191:8000'
+joinPath = '/join.json'
+rotaryPath = '/rotary.json'
 
 ################################################################# Startup Code for Rotary Encoder ##############################################################
+I2C = board.I2C()
 seesaw = seesaw.Seesaw(I2C, addr=0x36)
-seesaw_product = (seesaw.get_version() >> 16) & 0xFFFF
-print("Found product {}".format(seesaw_product))
-if seesaw_product != 4991:
-    print("Wrong firmware loaded?  Expected 4991")
-
+seesaw.pin_mode(24, seesaw.INPUT_PULLUP)
+button = digitalio.DigitalIO(seesaw,24)
 encoder = rotaryio.IncrementalEncoder(seesaw)
-button = digitalio.DigitalIO(seesaw, 24)
 
 button_prev = button.value
 button_state = button_prev
 
+################################################################# Startup Code for Rotary Encoder ##############################################################
+cols = 16
+rows = 2
+lcd = character_lcd.Character_LCD_I2C(I2C, cols, rows)
+
 ############################################################ Other Startup Code (Given from David Berry) ###########################################################
+
+NEO_BRIGHTNESS = 0.3
 
 #Sets the neopixel rings brightness
 neoFun.set_brightness(NEO_BRIGHTNESS)
@@ -125,6 +84,13 @@ flash_on = False
 color_list_value = None
 prev_position = 0
 
+lcd.backlight = True
+lcd.message = 'Connecting...'
+net_tool = espFun.ESP_Tools(NETWORK_NAME, NETWORK_PASS)
+lcd.clear()
+lcd.message = 'Connected to\nnetwork!'
+
+
 while(True):
 
     if sample_game_bool:
@@ -139,6 +105,7 @@ while(True):
         if button_prev == False and button_state == True and color_list_value != None:
             combination_list.append(idx)
             print(combination_list) ## will push this list to the LCD screen to make sure they have enough
+            net_tool.api_post(hostServer + rotaryPath, data=str(combination_list))
             if len(combination_list) == 5:
                 if combination_list == sample_game:
                     print("correct")
@@ -168,7 +135,3 @@ while(True):
             starttime = time.monotonic()
             flash_on = not flash_on
             Flash(flash_on,color_list_value[0], color_list_value[1], color_list_value[2], color_list_value[3], color_list_value[4])
-
-
-
-##########################################
