@@ -43,6 +43,10 @@ def Flash_3(color_index):
 def next_color():
     return random.randint(0,3)
 
+def update_scores():
+    scores = json.loads(net_tool.api_get(hostServer + scorePath))
+    lcd.message = f'Player 1: {str(scores["1"])}\nPlayer 2: {str(scores["2"])}'
+
 def match_sequence(color_sequence):
     color_select = 0
     success = True
@@ -145,7 +149,7 @@ if(playerID == '1'):
     lcd.message = 'Waiting for\nPlayer 2...'
 
     while(True):
-        time.sleep(3)
+        #time.sleep(3)
         gameID = json.loads(net_tool.api_get(hostServer + startPath))['id']
         if(gameID != 0):
             break
@@ -167,14 +171,16 @@ while(True):
     time.sleep(0.5)
     GenerateColors()
 
+    update_scores()
     if match_sequence(color_sequence):
         scores[playerID] += 1
     else:
         neoFun.set_ring_color((255,0,0))
-        break
+        prev_time_scores = time.monotonic()
+        while(True):
+            if time.monotonic() - prev_time_scores > 1:
+                update_scores()
+                prev_time_scores = time.monotonic()
 
     net_tool.api_post(hostServer + scorePath, data=str(str(playerID) + ' ' + str(scores[playerID])))
-    scores = json.loads(net_tool.api_get(hostServer + scorePath))
-    print(scores)
-
-    lcd.message = f'Player 1: {str(scores["1"])}\nPlayer 2: {str(scores["2"])}'
+    update_scores()
