@@ -17,6 +17,8 @@ except ImportError:
     raise
 NETWORK_NAME = secrets["ssid"]
 NETWORK_PASS = secrets["password"]
+THINGSPEAK_CHANNEL = 2331738                    #Enter Thingspeak Channel ID
+THINGSPEAK_API_KEY = 'XQ9KNLUJXRNYKNJC'         #Enter Thingspeak API
 
 def GenerateColors():
     neoFun.bar_graph((0,200,0), 5, True, 0) #green
@@ -44,7 +46,14 @@ def next_color():
     return random.randint(0,3)
 
 def update_scores(scores):
-    scores = json.loads(net_tool.api_get(hostServer + scorePath))
+    for i in range(0,10):
+        while True:
+            try:
+                scores = json.loads(net_tool.api_get(hostServer + scorePath))
+            except Exception:
+                print('I timedout :)')
+                continue
+            break
     lcd.message = f'Player 1: {str(scores["1"])}\nPlayer 2: {str(scores["2"])}'
     return scores
 
@@ -156,7 +165,14 @@ if(playerID == '1'):
 
     while(True):
         time.sleep(0.5)
-        gameID = json.loads(net_tool.api_get(hostServer + startPath))['id']
+        for i in range(0,10):
+            while True:
+                try:
+                    gameID = json.loads(net_tool.api_get(hostServer + startPath))['id']
+                except Exception:
+                    print('I timedout :)')
+                    continue
+                break
         if(gameID != 0):
             break
 else:
@@ -191,10 +207,26 @@ while(True):
     else:
         neoFun.set_ring_color((255,0,0))
         prev_time_scores = time.monotonic()
+
+        request_msg = "https://api.thingspeak.com/update?api_key={}&field{}={}".format(THINGSPEAK_API_KEY,'1',scores[playerID])
+        net_tool.api_get(request_msg)
         while(True):
             if time.monotonic() - prev_time_scores > 1:
                 scores = update_scores(scores)
+                if abs(scores['1'] - scores['2']) >= 3:
+                    current_degree = motor_center + (degrees_per_round * (-3 if scores['1'] < scores['2'] else 3) * (-1 if playerID == '2' else 1))
+                    motor_tool.set_position_degrees(current_degree)
+                else:
+                    current_degree = motor_center + (degrees_per_round * (scores['1'] - scores['2']) * (-1 if playerID == '2' else 1))
+                    motor_tool.set_position_degrees(current_degree)
                 prev_time_scores = time.monotonic()
 
     net_tool.api_post(hostServer + scorePath, data=str(str(playerID) + ' ' + str(scores[playerID])))
     scores = update_scores(scores)
+
+    if abs(scores['1'] - scores['2']) >= 3:
+        current_degree = motor_center + (degrees_per_round * (-3 if scores['1'] < scores['2'] else 3) * (-1 if playerID == '2' else 1))
+        motor_tool.set_position_degrees(current_degree)
+    else:
+        current_degree = motor_center + (degrees_per_round * (scores['1'] - scores['2']) * (-1 if playerID == '2' else 1))
+        motor_tool.set_position_degrees(current_degree)
