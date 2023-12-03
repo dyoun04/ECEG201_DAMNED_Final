@@ -43,9 +43,10 @@ def Flash_3(color_index):
 def next_color():
     return random.randint(0,3)
 
-def update_scores():
+def update_scores(scores):
     scores = json.loads(net_tool.api_get(hostServer + scorePath))
     lcd.message = f'Player 1: {str(scores["1"])}\nPlayer 2: {str(scores["2"])}'
+    return scores
 
 def match_sequence(color_sequence):
     color_select = 0
@@ -121,12 +122,17 @@ GenerateColors()
 motor_tool = motorFun.ECEGMotor(I2C)
 
 #Calling this will automaticly make the motor try and find its home(i.e. try to make a full rotation and end up hitting the stop peg)
-#motor_tool.find_home()
+motor_tool.find_home()
 
 ################################################################# Main Loop #################################################################
 
 color_index = 0
 color_sequence = ''
+
+motor_center = 152
+max_round_difference = 3
+degrees_per_round = 90 / max_round_difference
+current_degree = 0
 
 lcd.backlight = True
 lcd.message = 'Connecting...'
@@ -149,7 +155,7 @@ if(playerID == '1'):
     lcd.message = 'Waiting for\nPlayer 2...'
 
     while(True):
-        #time.sleep(3)
+        time.sleep(0.5)
         gameID = json.loads(net_tool.api_get(hostServer + startPath))['id']
         if(gameID != 0):
             break
@@ -160,6 +166,7 @@ random.seed(gameID)
 
 lcd.clear()
 lcd.message = f'Player 1: {str(scores["1"])}\nPlayer 2: {str(scores["2"])}'
+motor_tool.set_position_degrees(motor_center)
 
 while(True):
 
@@ -171,7 +178,14 @@ while(True):
     time.sleep(0.5)
     GenerateColors()
 
-    update_scores()
+    scores = update_scores(scores)
+    if abs(scores['1'] - scores['2']) >= 3:
+        current_degree = motor_center + (degrees_per_round * (-3 if scores['1'] < scores['2'] else 3) * (-1 if playerID == '2' else 1))
+        motor_tool.set_position_degrees(current_degree)
+    else:
+        current_degree = motor_center + (degrees_per_round * (scores['1'] - scores['2']) * (-1 if playerID == '2' else 1))
+        motor_tool.set_position_degrees(current_degree)
+
     if match_sequence(color_sequence):
         scores[playerID] += 1
     else:
@@ -179,8 +193,8 @@ while(True):
         prev_time_scores = time.monotonic()
         while(True):
             if time.monotonic() - prev_time_scores > 1:
-                update_scores()
+                scores = update_scores(scores)
                 prev_time_scores = time.monotonic()
 
     net_tool.api_post(hostServer + scorePath, data=str(str(playerID) + ' ' + str(scores[playerID])))
-    update_scores()
+    scores = update_scores(scores)
