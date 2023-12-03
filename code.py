@@ -153,7 +153,14 @@ playerID = 0
 gameID = 0
 scores = {'1' : 0, '2' : 0}
 
-txt = net_tool.api_get(hostServer + joinPath)
+for i in range(0,10):
+    while True:
+        try:
+            txt = net_tool.api_get(hostServer + joinPath)
+        except Exception:
+            print('I timedout :)')
+            continue
+        break
 playerID = txt[-2:-1]
 lcd.clear()
 lcd.message = txt

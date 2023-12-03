@@ -70,11 +70,11 @@ class ESP_Tools():
         print("My IP address is", self.esp.pretty_ip(self.esp.ip_address))
     #Pushes data to a specified field
 
-    def api_get(self, request):
+    def api_get(self, request, timeout=5):
         request_msg = request
         print(request_msg)
         try:
-            r = requests.get(request_msg)
+            r = requests.get(request_msg, timeout=timeout)
             response = r.text
             r.close()
         except RuntimeError as e:
@@ -82,7 +82,7 @@ class ESP_Tools():
             return e
         return response
 
-    def api_post(self, request, data=None, json=None):
+    def api_post(self, request, data=None, json=None, timeout=5):
         request_msg = request
         if(data is not None):
             data = data.encode('utf-8')
@@ -90,7 +90,7 @@ class ESP_Tools():
             json = json.encode('utf-8')
         print(request_msg)
         try:
-            r = requests.request('POST', request, data=data, json=json)
+            r = requests.request('POST', request, data=data, json=json, timeout=timeout)
         except RuntimeError as e:
             print("could not complete request error: ", e)
             return e
